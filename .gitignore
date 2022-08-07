@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
+config.json
+curs.json
+symbol.json
+symbol_rub.json
+symbol_usd.json
