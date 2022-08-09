@@ -3,7 +3,8 @@ import telebot
 import re
 import json
 import time
-# from telebot import apihelper
+from telebot import apihelper, types
+
 
 # proxies = {"https": "hqproxyusr.avp.ru:8080", "http": "hqproxyusr.avp.ru:8080"}
 # apihelper.proxy = proxies
@@ -15,6 +16,7 @@ with open('config.json') as f:
 
 bot = telebot.TeleBot(tg_bot_token)
 
+region = []
 # wikipedia.set_lang("ru")
 
 @bot.message_handler(commands=["start"])
@@ -29,14 +31,40 @@ def handle_text(message):
 
     if message.text == "/help":
         bot.send_message(message.from_user.id, f"Введите пример: '/btc 10'\n {', '.join(templates.keys())} ")
+    elif message.text == "/menu":
+        keyboard = [
+            [
+                types.InlineKeyboardButton("RUB", callback_data='RUB'),
+                types.InlineKeyboardButton("USD", callback_data='USD'),
+            ],
+            [types.InlineKeyboardButton("Option 3", callback_data='3')],
+        ]
+        reply_markup = types.InlineKeyboardMarkup(keyboard)
+        bot.send_message(message.chat.id,
+                         text="Привет, {0.first_name}! Я тестовый бот для твоей статьи для habr.com".format(
+                             message.from_user), reply_markup=reply_markup)
+
     else:
-        coin_int = re.findall(r'\d+', message.text)
+        coin_list = re.findall(r'\d+', message.text)
+        coin_int = int(coin_list[0]) if coin_list else 1
         symbol = "".join(re.findall(r'[a-zA-Z]', message.text))
-        bot.send_message(message.chat.id, get_course(int(coin_int[0]), symbol))
+        reg = region[0] if region else "RUB"
+        bot.send_message(message.chat.id, get_course(coin_int, symbol, reg))
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    if call.data == "USD":
+        region.append(call.data)
+        bot.send_message(call.message.chat.id, f'Выюрали валюту {call.data}')
+    elif call.data == "RUB":
+        region.append(call.data)
+        bot.send_message(call.message.chat.id, f'Выюрали валюту {call.data}')
 
 
 def percent(new: int, old: int):
     return round((new - old) / old * 100, 2)
+
 
 def get_symbol(message: list, parameter):
     symbol = []
@@ -51,30 +79,28 @@ def get_symbol(message: list, parameter):
             "percent_change_1h": message[i]['quote'][parameter]['percent_change_1h'],
             "percent_change_24h": message[i]['quote'][parameter]['percent_change_24h'],
         }
-    if parameter == "RUB":
-        with open("symbol_rub.json", 'w') as f:
+
+        with open("symbol.json", 'w') as f:
             f.write(json.dumps(value))
-    else:
-        with open("symbol_usd.json", 'w') as f:
-            f.write(json.dumps(value))
+    # if parameter == "RUB":
+    #     with open("symbol.json", 'w') as f:
+    #         f.write(json.dumps(value))
+    # else:
+    #     with open("symbol.json", 'w') as f:
+    #         f.write(json.dumps(value))
 
     return symbol
 
 
-def get_course(coin, symbol):
+def get_course(coin, symbol, region):
     url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/category'
-    parameters_usd = {
+    parameter = {
         "id": "605e2ce9d41eae1066535f7c",
         'start': '1',
         'limit': '1000',
-        'convert': 'USD'
+        'convert': region
     }
-    parameters_rub = {
-        "id": "605e2ce9d41eae1066535f7c",
-        'start': '1',
-        'limit': '1000',
-        'convert': 'RUB'
-    }
+
     headers = {
         'Accepts': 'application/json',
         'X-CMC_PRO_API_KEY': coin_token,
@@ -82,38 +108,38 @@ def get_course(coin, symbol):
 
     try:
         #  proxies=proxies
-        response_rub = requests.get(url, headers=headers, params=parameters_rub)
+        # response_rub = requests.get(url, headers=headers, params=parameters_rub)
+        # time.sleep(1)
+        response = requests.get(url, headers=headers, params=parameter)
         time.sleep(1)
-        response_usd = requests.get(url, headers=headers, params=parameters_usd)
-        time.sleep(1)
-        data_rub = json.loads(response_rub.text)
-        data_usd = json.loads(response_usd.text)
-        get_symbol(data_rub["data"]["coins"], parameters_rub['convert'])
-        symbols = get_symbol(data_usd["data"]["coins"], parameters_usd['convert'])
+        # data_rub = json.loads(response_rub.text)
+        data = json.loads(response.text)
+        # get_symbol(data["data"]["coins"], parameter['convert'])
+        symbols = get_symbol(data["data"]["coins"], parameter['convert'])
 
-        with open("symbol_rub.json", "r", encoding="utf-8") as f:
-            templates_rub = json.load(f)
+        # with open("symbol_rub.json", "r", encoding="utf-8") as f:
+        #     templates_rub = json.load(f)
 
-        with open("symbol_usd.json", "r", encoding="utf-8") as fn:
-            templates_usd = json.load(fn)
+        with open("symbol.json", "r", encoding="utf-8") as fn:
+            templates = json.load(fn)
         sp = {}
         source = "{:,d}"
-        for key, value in templates_rub.items():
-            if key == symbol.upper():
-                price = source.format(round(value['price'] * coin, 4))
-                # volume_24h = source.format(round(value['volume_24h'] * coin, 4))
-                # volume_change_24h = source.format(round(value['volume_change_24h'] * coin, 4))
-                # percent_change_1h = round(value['percent_change_1h'], 2)
-                # percent_change_24h = round(value['percent_change_24h'], 2)
-
-                sp["RUB"] = {
-                    "name": f"{key} {parameters_rub['convert']}: {price}",
-                    # "volume_24h": f"Значение 24h: {volume_24h}",
-                    # "volume_change_24h": f"Значение обновлено 24h: {volume_change_24h}",
-                    # "percent_change_1h": f"Проценты 1h: {percent_change_1h}%",
-                    # "percent_change_24h": f"Проценты 24h: {percent_change_24h}%",
-                }
-        for key, value in templates_usd.items():
+        # for key, value in templates_rub.items():
+            # if key == symbol.upper():
+            #     price = source.format(round(value['price'] * coin, 4))
+            #     # volume_24h = source.format(round(value['volume_24h'] * coin, 4))
+            #     # volume_change_24h = source.format(round(value['volume_change_24h'] * coin, 4))
+            #     # percent_change_1h = round(value['percent_change_1h'], 2)
+            #     # percent_change_24h = round(value['percent_change_24h'], 2)
+            #
+            #     sp["RUB"] = {
+            #         "name": f"{key} {parameter['convert']}: {price}",
+            #         # "volume_24h": f"Значение 24h: {volume_24h}",
+            #         # "volume_change_24h": f"Значение обновлено 24h: {volume_change_24h}",
+            #         # "percent_change_1h": f"Проценты 1h: {percent_change_1h}%",
+            #         # "percent_change_24h": f"Проценты 24h: {percent_change_24h}%",
+            #     }
+        for key, value in templates.items():
             if key == symbol.upper():
                 price = source.format(round(value['price'] * coin, 4))
                 volume_24h = source.format(round(value['volume_24h'] * coin, 4))
@@ -121,21 +147,20 @@ def get_course(coin, symbol):
                 percent_change_1h = round(value['percent_change_1h'], 2)
                 percent_change_24h = round(value['percent_change_24h'], 2)
 
-                sp["USD"] = {
-                    "name": f"{key} {parameters_usd['convert']}: {price}",
+                sp[region] = {
+                    "name": f"{key} {parameter['convert']}: {price}",
                     "volume_24h": f"Объёма торгов за 24h: {volume_24h}",
                     "volume_change_24h": f"Изменение объёма торгов за 24h: {volume_change_24h}",
                     "percent_change_1h": f"Проценты за 1h: {percent_change_1h}%",
                     "percent_change_24h": f"Проценты за 24h: {percent_change_24h}%",
                 }
-
         return "\n".join(
-            (sp["RUB"]["name"],
-            sp["USD"]["name"],
-            sp["USD"]["volume_24h"],
-            sp["USD"]["volume_change_24h"],
-            sp["USD"]["percent_change_1h"],
-            sp["USD"]["percent_change_24h"],)
+            (
+            sp[region]["name"],
+            sp[region]["volume_24h"],
+            sp[region]["volume_change_24h"],
+            sp[region]["percent_change_1h"],
+            sp[region]["percent_change_24h"],)
         )
 
     except:
