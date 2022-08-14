@@ -37,7 +37,7 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# Unit tests / coverage reports
 htmlcov/
 .tox/
 .nox/
@@ -132,6 +132,6 @@ dmypy.json
 
 config.json
 curs.json
-symbol.json
+symbol_all.json
 symbol_rub.json
 symbol_usd.json

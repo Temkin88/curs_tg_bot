@@ -3,26 +3,20 @@ import telebot
 import re
 import json
 import time
-
-from aiogram.types import update
 from telebot import apihelper, types
 
 
-proxies = {"https": "hqproxyusr.avp.ru:8080", "http": "hqproxyusr.avp.ru:8080"}
-apihelper.proxy = proxies
-
-with open('config.json') as f:
+with open('C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\config.json') as f:
     templates = json.load(f)
     tg_bot_token = templates["tg_bot_token"]
     coin_token = templates["coin_token"]
 
-with open("symbol_all.json", "r", encoding="utf-8") as fn:
+with open("C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\symbol_all.json", "r", encoding="utf-8") as fn:
     temp = json.load(fn)
 
 bot = telebot.TeleBot(tg_bot_token)
 
 reg = []
-
 
 
 @bot.message_handler(commands=["start"])
@@ -33,9 +27,7 @@ def start(m, res=False):
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
     if message.text == "/help":
-
         bot.send_message(message.from_user.id, f"Введите пример: '/btc 10'\n {', '.join(temp)} ")
-
     elif message.text == "/menu":
         keyboard = [
             [
@@ -56,7 +48,7 @@ def handle_text(message):
         coin_list = re.findall(r'\d+', message.text)
         coin_int = int(coin_list[0]) if coin_list else 1
         symbol = "".join(re.findall(r'[a-zA-Z]', message.text))
-        reg1 = reg if reg else "RUB"
+        reg1 = reg if reg else ["RUB"]
         regist = get_url(reg1, symbol, temp)
         bot.send_message(message.chat.id, get_course(message, coin_int, symbol.upper(), regist))
 
@@ -91,8 +83,6 @@ def callback_worker(call):
 
 
 def get_url(reg, symbol, temp):
-
-
     param_list = {}
     url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/category'
     headers = {
@@ -107,7 +97,8 @@ def get_url(reg, symbol, temp):
             'convert': reg[i]
         }
         time.sleep(1)
-        response = requests.get(url, headers=headers, params=parameters, proxies=proxies)
+        #  proxies=proxies
+        response = requests.get(url, headers=headers, params=parameters)
         time.sleep(1)
         data = json.loads(response.text)
         param = data["data"]["coins"]
@@ -115,7 +106,7 @@ def get_url(reg, symbol, temp):
         for j in range(len(param)):
             if param[j]["symbol"] not in temp:
                 temp.append(f'/{param[j]["symbol"]}')
-                with open("symbol_all.json", "w", encoding="utf-8") as f:
+                with open("C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\symbol_all.json", "w", encoding="utf-8") as f:
                     f.write(json.dumps(temp))
             if symbol.upper() in param[j]["symbol"]:
                 param_list[reg[i]][param[j]["symbol"]] = {
@@ -125,6 +116,7 @@ def get_url(reg, symbol, temp):
                     "percent_change_1h": param[j]['quote'][reg[i]]['percent_change_1h'],
                     "percent_change_24h": param[j]['quote'][reg[i]]['percent_change_24h'],
                 }
+
     return param_list
 
 @bot.message_handler(content_types=["text"])
