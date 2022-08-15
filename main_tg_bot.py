@@ -3,20 +3,25 @@ import telebot
 import re
 import json
 import time
+
+from aiogram.types import update
 from telebot import apihelper, types
 
 
-with open('C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\config.json') as f:
+with open('config.json') as f:
     templates = json.load(f)
     tg_bot_token = templates["tg_bot_token"]
     coin_token = templates["coin_token"]
+    f.close()
 
-with open("C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\symbol_all.json", "r", encoding="utf-8") as fn:
+with open("symbol_all.json", "r", encoding="utf-8") as fn:
     temp = json.load(fn)
+    fn.close()
 
 bot = telebot.TeleBot(tg_bot_token)
 
 reg = []
+
 
 
 @bot.message_handler(commands=["start"])
@@ -49,8 +54,8 @@ def handle_text(message):
         coin_int = int(coin_list[0]) if coin_list else 1
         symbol = "".join(re.findall(r'[a-zA-Z]', message.text))
         reg1 = reg if reg else ["RUB"]
-        regist = get_url(reg1, symbol, temp)
-        bot.send_message(message.chat.id, get_course(message, coin_int, symbol.upper(), regist))
+        parser = get_parser(reg1, symbol, temp)
+        bot.send_message(message.chat.id, get_course(message, coin_int, symbol.upper(), parser))
 
 
 # Обработчик нажатий на кнопки
@@ -82,7 +87,7 @@ def callback_worker(call):
         bot.send_message(call.from_user.id, text=f'Выбрана валюта {call.data}')
 
 
-def get_url(reg, symbol, temp):
+def get_parser(reg, symbol, temp):
     param_list = {}
     url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/category'
     headers = {
@@ -97,17 +102,14 @@ def get_url(reg, symbol, temp):
             'convert': reg[i]
         }
         time.sleep(1)
-        #  proxies=proxies
-        response = requests.get(url, headers=headers, params=parameters)
+        response = requests.get(url, headers=headers, params=parameters, proxies=proxies)
         time.sleep(1)
         data = json.loads(response.text)
         param = data["data"]["coins"]
         param_list[reg[i]] = data
         for j in range(len(param)):
-            if param[j]["symbol"] not in temp:
+            if f'/{param[j]["symbol"]}' not in temp:
                 temp.append(f'/{param[j]["symbol"]}')
-                with open("C:\\Users\zav\PycharmProjects\pythonProject\curs_tg_bot\symbol_all.json", "w", encoding="utf-8") as f:
-                    f.write(json.dumps(temp))
             if symbol.upper() in param[j]["symbol"]:
                 param_list[reg[i]][param[j]["symbol"]] = {
                     "price": int(param[i]['quote'][reg[i]]['price']),
@@ -116,8 +118,11 @@ def get_url(reg, symbol, temp):
                     "percent_change_1h": param[j]['quote'][reg[i]]['percent_change_1h'],
                     "percent_change_24h": param[j]['quote'][reg[i]]['percent_change_24h'],
                 }
-
+    with open("symbol_all.json", "w", encoding="utf-8") as f:
+        f.write(json.dumps(temp))
+        f.close()
     return param_list
+
 
 @bot.message_handler(content_types=["text"])
 def get_course(message, coin, symbol, regist):
@@ -140,6 +145,7 @@ def get_course(message, coin, symbol, regist):
                 "percent_change_1h": f"Проценты за 1h: {percent_change_1h}%",
                 "percent_change_24h": f"Проценты за 24h: {percent_change_24h}%",
             }
+
             bot.send_message(message.chat.id, '\n'.join([
                 sp[key]["name"],
                 sp[key]["volume_24h"],
@@ -147,10 +153,10 @@ def get_course(message, coin, symbol, regist):
                 sp[key]["percent_change_1h"],
                 sp[key]["percent_change_24h"],
             ]))
+
     except:
         return ("\U00002620 Что то пошло не так \U00002620")
 
 
 if __name__ == '__main__':
     bot.polling(none_stop=True, interval=0)
-
